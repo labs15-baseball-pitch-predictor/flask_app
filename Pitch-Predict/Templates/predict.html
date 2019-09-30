@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Pitch-Predict - {{ title }}</title>
+    <link rel="stylesheet" href="https://unpkg.com/picnic"/>
+  </head>
+  <body>
+    <nav>
+      <a href="/" class="brand"><span>Pitch-Predict</span></a>
+    </nav>
+
+    <article class="flex two" style="padding: 3em 1em;">
+        {% block content %}
+        <div>
+
+            <h1>Sample Pitch</h1>
+            <h2>{{ sample_pitch }}</h2>
+
+            <h1>Prediction</h1>
+            <h2>{{ prediction }}</h2>
+
+        </div>
+        {% endblock %}
+    </article>
+  </body>
+</html>
