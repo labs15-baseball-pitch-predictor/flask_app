@@ -3,8 +3,7 @@ import random
 import pickle
 import datetime
 
-from .games import today, query_redshift, Player
-from .Bauer_model import Machine_learning
+from .games import *
 from .column_names import col_names
 from .preprocessing import Preprocess
 from .ML import query_redshift, Boost_tree
@@ -60,14 +59,9 @@ def create_app():
 
     @app.route('/today')
     def todays_stuff():
-        today_df = today()
-        todays_games = today_df['todays_games'].tolist()
-        todays_home_pitcher_ids = today_df['home_pitchers'].tolist()
-        todays_home_pitcher_name = today_df['home_pitchers_names'].tolist()
-        todays_away_pitcher_ids = today_df['away_pitchers'].tolist()
-        todays_home_pitcher_name = today_df['away_pitchers_names'].tolist()
-
-        return str(todays_games[0]) + str(today_df['home_pitchers'][0])
+        
+        todays_pitchers = get_all_pitchers(2019, 9, 30)
+        return str(todays_pitchers[:10])
 
 
     @app.route('/predict')

@@ -1,79 +1,28 @@
-from .column_names import col_names
-
-import psycopg2
-import pandas as pd
-import requests
 from pybaseball import schedule_and_record
+import pandas as pd
 import numpy as np
 import datetime
+import pickle
 
 
 
-class Player:
-
-
-  def __init__(self, player_name):
-    input_ = "\'" + player_name +"\'"
-    self.request = requests.get(
-    """http://lookup-service-prod.mlb.com/json/named.search_player_all.
-       bam?sport_code='mlb'&active_sw='Y'&name_part=""" + input_
-    )
-    try:
-        self.profile = self.request.json()['search_player_all']['queryResults']['row']
-    except Exception as e:
-        self.profile = {'team_abbrev':'NA'}
-    try:
-        self.team = self.profile['team_abbrev']
-    except Exception as e:
-        self.team = 'NA'
-
-
-
-def query_redshift(query_string):
-
-    con = psycopg2.connect(
-        dbname= 'dev',
-        host='examplecluster.cdbpwaymevt5.us-east-2.redshift.amazonaws.com',
-        port= '5439',
-        user= 'awsuser',
-        password= '47Westrange')
-
-    cur = con.cursor()
-
-    cur.execute(query_string)
-
-    results = cur.fetchall()
-
-    cur.close()
-    con.close()
-
-    return results
-
-
-def today():
-
-    df = pd.DataFrame(query_redshift("""SELECT DISTINCT pitcher, player_name
-                                        FROM pitches
-                                        WHERE game_year = 2019"""),
-                                        columns = ['id', 'player_name'])
-
-    df['player_name'] = df['player_name'].str.replace(' ', '_')
-
-    df['player_team'] = df['player_name'].apply(lambda x: Player(x).team)
-
-
-    today = pd.to_datetime(datetime.date.today())
+def get_games(year, month, day):
+    """
+    Date format XXXX, X, X
+    returns a list of game matchups as strings
+    """
+    date = pd.to_datetime(datetime.date(year, month, day))
 
     teams = ['OAK', 'LAD', 'TOR', 'PHI', 'ATL', 'LAA', 'BAL', 'HOU', 'BOS',
-             'CIN', 'SD', 'TEX', 'PIT', 'COL', 'STL', 'CHW', 'CHC', 'TB',
-             'MIN', 'DET', 'ARI', 'SF', 'KC', 'WSN', 'SEA', 'MIA', 'NYY',
-             'MIL', 'CLE', 'NYM']
+          'CIN', 'SD', 'TEX', 'PIT', 'COL', 'STL', 'CHW', 'CHC', 'TB',
+          'MIN', 'DET', 'ARI', 'SF', 'KC', 'WSN', 'SEA', 'MIA', 'NYY',
+          'MIL', 'CLE', 'NYM']
 
-    todays_games = []
+    dates_games = []
 
     for team in teams:
-        data = schedule_and_record(2019, team)
-        data['year'] = np.ones(data.shape[0], int) * 2019
+        data = schedule_and_record(year, team)
+        data['year'] = np.ones(data.shape[0], int) * year
 
         data['month'] = data['Date'].str.split(' ').apply(lambda x: x[1])
         months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug',
@@ -89,11 +38,11 @@ def today():
         data['Date'] = pd.to_datetime(data['Date'])
         data = data[['Date', 'Tm', 'Home_Away', 'Opp']]
 
-        todays_games.append(data[data['Date'] == today].to_dict())
+        dates_games.append(data[data['Date'] == date].to_dict())
 
-        games_on_date = []
+    games_on_date = []
 
-    for i in todays_games:
+    for i in dates_games:
         team = ''.join(list(i['Tm'].values()))
         home_or_away = ''.join(list(i['Home_Away'].values()))
         opposing_team = ''.join(list(i['Opp'].values()))
@@ -101,29 +50,47 @@ def today():
             games_on_date.append(
                 str(str(team) + ' ' +
                     str(home_or_away) + ' ' +
-                    str(opposing_team))
-                )
+                    str(opposing_team)))
 
-    today = pd.DataFrame(games_on_date, columns = ['todays_games'])
+    return games_on_date
 
-    today['home_team'] = today['todays_games'].str.split().apply(lambda x : x[2])
-    today['away_team'] = today['todays_games'].str.split().apply(lambda x : x[0])
 
-    def team_pitchers(team):
-        """Takes a list of teams and returns a list of pitcher ids"""
-        team_pitchers = df.where(df['player_team'] == team).dropna(axis = 0)
-        team_pitchers = team_pitchers['id'].tolist()
-        return team_pitchers
+def get_teams(list_of_games):
+    """takes a list of game matchups
+    returns a list of teams"""
+    teams = []
+    for i in list_of_games:
+        away_team = i.split()[0]
+        home_team = i.split()[2]
+        teams.append(home_team)
+        teams.append(away_team)
 
-    def team_pitchers_names(team):
-        """Takes a list of teams and returns a list of pitcher ids"""
-        team_pitchers = df.where(df['player_team'] == team).dropna(axis = 0)
-        team_pitchers = team_pitchers['player_name'].tolist()
-        return team_pitchers
+    return teams
 
-    today['home_pitchers'] = today['home_team'].apply(lambda x: team_pitchers(x))
-    today['away_pitchers'] = today['away_team'].apply(lambda x: team_pitchers(x))
-    today['home_pitchers_names'] = today['home_team'].apply(lambda x: team_pitchers_names(x))
-    today['away_pitchers_names'] = today['away_team'].apply(lambda x: team_pitchers_names(x))
 
-    return today
+def get_teams_pitchers(team, year):
+    """Returns a list of player ids for a specified team abbrivation and year"""
+
+    path = "Pitch-Predict/pitcher_team_dicts/" + str(year) + '_pitcher_team_dict.pkl'
+    pitcher_team_dict = pickle.load(open(path, 'rb'))
+
+    pitchers = []
+    for id, player_info in pitcher_team_dict.items():
+        if player_info['player_team'] == team:
+            pitchers.append(id)
+
+    return pitchers
+
+
+def get_all_pitchers(year, month, day):
+    """
+    takes a date xxxx, x, x
+    returns a list of lists containing pitcher_ids
+    """
+    all_pitchers = []
+    for team in get_teams(get_games(2019, 6, 2)):
+        all_pitchers.append(get_teams_pitchers(team, year))
+
+    all_pitchers = [item for sublist in all_pitchers for item in sublist]
+
+    return all_pitchers
