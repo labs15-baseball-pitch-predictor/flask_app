@@ -6,12 +6,13 @@ import pickle
 
 
 
-def get_games(year, month, day):
+def get_games(date):
     """
-    Date format XXXX, X, X
+    takes a datetime object
     returns a list of game matchups as strings
     """
-    date = pd.to_datetime(datetime.date(year, month, day))
+    year = date.year
+    date = pd.to_datetime(date)
 
     teams = ['OAK', 'LAD', 'TOR', 'PHI', 'ATL', 'LAA', 'BAL', 'HOU', 'BOS',
           'CIN', 'SD', 'TEX', 'PIT', 'COL', 'STL', 'CHW', 'CHC', 'TB',
@@ -82,13 +83,14 @@ def get_teams_pitchers(team, year):
     return pitchers
 
 
-def get_all_pitchers(year, month, day):
+def get_all_pitchers(date):
     """
-    takes a date xxxx, x, x
+    takes a datetime object
     returns a list of lists containing pitcher_ids
     """
+    year = date.year
     all_pitchers = []
-    for team in get_teams(get_games(2019, 6, 2)):
+    for team in get_teams(get_games(date)):
         all_pitchers.append(get_teams_pitchers(team, year))
 
     all_pitchers = [item for sublist in all_pitchers for item in sublist]
